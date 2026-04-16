@@ -1,0 +1,54 @@
+#######################################
+# Syntax Coloring for SmartProv
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+SmartProv	KEYWORD1
+SPConfig	KEYWORD1
+SPWiFiEntry	KEYWORD1
+SPField		KEYWORD1
+SP_Storage	KEYWORD1
+SP_WiFi		KEYWORD1
+SP_Server	KEYWORD1
+SPWiFiState	KEYWORD1
+SPFailReason	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin		KEYWORD2
+update		KEYWORD2
+isConnected	KEYWORD2
+isSetupMode	KEYWORD2
+getIP		KEYWORD2
+getSSID		KEYWORD2
+getDeviceName	KEYWORD2
+getAPName	KEYWORD2
+getMACAddress	KEYWORD2
+getRSSI		KEYWORD2
+getField	KEYWORD2
+addField	KEYWORD2
+onConnected	KEYWORD2
+onLoop		KEYWORD2
+resetCredentials	KEYWORD2
+getStorage	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+SP_MAX_NETWORKS		LITERAL1
+SP_MAX_FIELDS		LITERAL1
+SP_FIELD_KEY_LEN	LITERAL1
+SP_FIELD_VAL_LEN	LITERAL1
+SP_AP_PREFIX		LITERAL1
+SP_RESET_PIN		LITERAL1
+SP_LED_PIN		LITERAL1
+SP_RESET_HOLD_MS	LITERAL1
+SP_RESTART_DELAY_MS	LITERAL1
+SP_CONNECT_TIMEOUT_MS	LITERAL1
+SP_MAX_RECONNECT_TRIES	LITERAL1
