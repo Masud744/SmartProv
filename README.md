@@ -4,6 +4,10 @@ A captive-portal Wi-Fi provisioning library for ESP32 and ESP8266.
 
 SmartProv eliminates hardcoded Wi-Fi credentials. On first boot the device starts an Access Point and serves a mobile-friendly setup page. The user selects a network, enters credentials, and the device stores them to flash and connects automatically on every subsequent boot.
 
+## Portal Preview
+
+![SmartProv portal preview](docs/portal_preview.png)
+
 ## Features
 
 - Captive portal with automatic redirect on Android, iOS, and Windows
