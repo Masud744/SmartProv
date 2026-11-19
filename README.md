@@ -207,8 +207,8 @@ void onConnected() {
     String apiKey    = prov.getField("api_key");
     String serverUrl = prov.getField("server_url");
 
-    Serial.printf("[App] API Key    : %s\n", apiKey.isEmpty() ? "(not set)" : apiKey.c_str());
-    Serial.printf("[App] Server URL : %s\n", serverUrl.isEmpty() ? "(not set)" : serverUrl.c_str());
+    Serial.printf("[App] API Key    : %s\n", apiKey.length() ? apiKey.c_str() : "(not set)");
+    Serial.printf("[App] Server URL : %s\n", serverUrl.length() ? serverUrl.c_str() : "(not set)");
 }
 
 void appLoop() {
