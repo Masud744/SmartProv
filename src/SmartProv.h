@@ -4,7 +4,7 @@
 #define SP_VERSION "3.0.0"
 
 #if !defined(ESP32) && !defined(ESP8266)
-    #error "SmartProv requires ESP32 or ESP8266."
+    #error "SmartProv requires an ESP32 family (ESP32/S2/S3/C3/C6) or ESP8266 board."
 #endif
 
 #include "SP_Storage.h"

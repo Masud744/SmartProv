@@ -1,14 +1,8 @@
 # SmartProv
 
-> **Zero-Config IoT Setup — Captive-portal Wi-Fi provisioning for ESP32 and ESP8266.**
+> **Zero-Config IoT Setup — Captive-portal Wi-Fi provisioning for the ESP32 family (ESP32, S2, S3, C2, C3, C6) and ESP8266.**
 
 SmartProv eliminates hardcoded Wi-Fi credentials from your firmware. On first boot, the device starts an Access Point and serves a mobile-friendly setup page directly from the microcontroller. The user selects a network, enters credentials, and the device stores them to flash — connecting automatically on every subsequent boot. No app, no cloud, no pairing code required.
-
----
-
-## Portal Preview
-
-![SmartProv portal preview](docs/preview.jpeg)
 
 ---
 
@@ -137,8 +131,8 @@ SmartProv v3.0.0
 
 ## Supported Platforms
 
-- ESP32
-- ESP8266 / NodeMCU
+- **ESP32 Family:** ESP32, ESP32-S2, ESP32-S3, ESP32-C2, ESP32-C3, ESP32-C6
+- **ESP8266 Family:** NodeMCU, WeMos D1 Mini, ESP-12E/F, ESP-01
 
 ---
 
@@ -254,8 +248,8 @@ The setup page will show an "Advanced Settings" section with inputs for API Key,
 ### Initialisation
 
 ```cpp
-prov.begin();                    // Default pins (reset=GPIO0, LED=GPIO2)
-prov.begin(resetPin, ledPin);    // Custom GPIO pins
+prov.begin();                    // Default pins (reset=GPIO0, LED=GPIO2 for ESP32/ESP8266)
+prov.begin(resetPin, ledPin);    // Custom GPIO pins (e.g. prov.begin(9, 8) for ESP32-C3)
 ```
 
 ### Status
