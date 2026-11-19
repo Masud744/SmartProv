@@ -96,7 +96,9 @@ public:
           _onFactoryResetCb(nullptr),
           _otaEnabled(false),
           _mdnsEnabled(false)
-    {}
+    {
+        memset(_wrongPasswordNets, 0, sizeof(_wrongPasswordNets));
+    }
 
     /**
      * Initialises SmartProv. Call once from setup().
@@ -117,6 +119,7 @@ public:
         pinMode(_ledPin,   OUTPUT);
         pinMode(_resetPin, INPUT_PULLUP);
         _setLed(false);
+        memset(_wrongPasswordNets, 0, sizeof(_wrongPasswordNets));
 
         _storage.init();
         _config = _storage.load();
@@ -159,24 +162,30 @@ public:
 
                 if (ws == SP_WIFI_FAILED) {
                     if (_wifi.isWrongPassword()) {
-                        // Wrong password for this network — mark it and try the
-                        // next saved network before giving up. Only enter setup
-                        // mode once every saved network has been rejected.
                         Serial.printf("[SmartProv] Wrong password for: %s\n",
                                       _config.networks[_currentNetIdx].ssid);
+                        _wrongPasswordNets[_currentNetIdx] = true;
 
-                        const int next = _findNextValidNetwork(_currentNetIdx);
+                        const int next = _findNextConnectableNetwork(_currentNetIdx);
                         if (next >= 0) {
                             _currentNetIdx = next;
-                            _wifi.resetReconnectCounter();
                             Serial.printf("[SmartProv] Trying next network: %s\n",
                                           _config.networks[next].ssid);
                             _wifi.beginSTA(_config.networks[next].ssid,
                                            _config.networks[next].password);
                         } else {
-                            Serial.println(F("[SmartProv] All networks failed (wrong password). Entering setup mode."));
-                            _wifi.resetReconnectCounter();
-                            _transitionTo(SP_APP_SETUP_MODE);
+                            const int first = _findNextConnectableNetwork(-1);
+                            if (first >= 0 && !_wifi.hasExceededReconnectLimit()) {
+                                _currentNetIdx = first;
+                                Serial.printf("[SmartProv] Retrying network: %s\n",
+                                              _config.networks[_currentNetIdx].ssid);
+                                _wifi.beginSTA(_config.networks[_currentNetIdx].ssid,
+                                               _config.networks[_currentNetIdx].password);
+                            } else {
+                                Serial.println(F("[SmartProv] All networks failed (wrong password / unreachable). Entering setup mode."));
+                                _wifi.resetReconnectCounter();
+                                _transitionTo(SP_APP_SETUP_MODE);
+                            }
                         }
                         break;
                     }
@@ -188,7 +197,7 @@ public:
                         break;
                     }
 
-                    const int next = _findNextValidNetwork(_currentNetIdx);
+                    const int next = _findNextConnectableNetwork(_currentNetIdx);
                     if (next >= 0) {
                         _currentNetIdx = next;
                         Serial.printf("[SmartProv] Trying next network: %s\n",
@@ -196,14 +205,13 @@ public:
                         _wifi.beginSTA(_config.networks[next].ssid,
                                        _config.networks[next].password);
                     } else {
-                        // All saved networks exhausted; wrap back to index 0
-                        // so the next cycle restarts from the first entry.
-                        _currentNetIdx = _findNextValidNetwork(-1);
-                        if (_currentNetIdx < 0) {
-                            Serial.println(F("[SmartProv] No valid networks. Entering setup mode."));
+                        _currentNetIdx = _findNextConnectableNetwork(-1);
+                        if (_currentNetIdx < 0 || _wifi.hasExceededReconnectLimit()) {
+                            Serial.println(F("[SmartProv] All networks exhausted. Entering setup mode."));
+                            _wifi.resetReconnectCounter();
                             _transitionTo(SP_APP_SETUP_MODE);
                         } else {
-                            Serial.printf("[SmartProv] Retrying from first network: %s\n",
+                            Serial.printf("[SmartProv] Retrying from network: %s\n",
                                           _config.networks[_currentNetIdx].ssid);
                             _wifi.beginSTA(_config.networks[_currentNetIdx].ssid,
                                            _config.networks[_currentNetIdx].password);
@@ -374,6 +382,15 @@ private:
         return -1;
     }
 
+    int _findNextConnectableNetwork(int after) const {
+        for (int i = after + 1; i < SP_MAX_NETWORKS; i++) {
+            if (_config.networks[i].valid && strlen(_config.networks[i].ssid) > 0 && !_wrongPasswordNets[i]) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     void _transitionTo(SPAppState next) {
         Serial.printf("[SmartProv] State: %d -> %d\n",
                       static_cast<int>(_appState), static_cast<int>(next));
@@ -403,6 +420,7 @@ private:
 
             case SP_APP_SETUP_MODE: {
                 _instance = this;
+                memset(_wrongPasswordNets, 0, sizeof(_wrongPasswordNets));
                 _apName = _wifi.generateAPName(SP_AP_PREFIX);
                 _wifi.startAP(_apName, _apPassword.c_str());
                 const String nets = _wifi.scanNetworks();
@@ -439,10 +457,17 @@ private:
     // -----------------------------------------------------------------------
 
     void _handleResetButton() {
-        // Factory reset is only permitted while connected.
-        // Blocking it in setup/saving states prevents accidental erasure while
-        // the user is actively interacting with the provisioning portal.
-        if (_appState != SP_APP_CONNECTED) {
+        if (Serial.available()) {
+            const char c = Serial.read();
+            if (c == 'R' || c == 'r') {
+                Serial.println(F("[SmartProv] Factory reset triggered via Serial command."));
+                resetCredentials();
+                return;
+            }
+        }
+
+        // Factory reset is permitted while CONNECTED or CONNECTING.
+        if (_appState != SP_APP_CONNECTED && _appState != SP_APP_CONNECTING) {
             _resetPressed = false;
             return;
         }
@@ -542,6 +567,7 @@ private:
     bool            _mdnsEnabled;
     String          _mdnsHostname;
     String          _apPassword;
+    bool            _wrongPasswordNets[SP_MAX_NETWORKS];
 
     // Singleton pointer used only to bridge the lambda capture limitation
     // of the ESP Arduino SDK (std::function not available on all builds).
