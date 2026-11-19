@@ -26,11 +26,14 @@ This works on your desk. It breaks the moment you deploy a device to a client, a
 
 | | WiFiManager | SmartProv |
 |---|---|---|
-| UI | Dated HTML form | Modern dark-theme portal |
+| UI | Dated HTML form | Ultra-clean hardware dark UI |
 | Multi-network fallback | No | Yes — up to 3 networks |
 | Wrong-password detection | Retries 5x | Immediately re-provisions |
+| Live Wi-Fi rescan | No | Yes — real-time scan button |
+| Built-in Web OTA | No | Yes — browser firmware upload |
+| mDNS Support | No | Yes (`smartprov.local`) |
+| RAM Efficiency | High overhead | PROGMEM streaming (saves ~16KB RAM) |
 | Custom config fields | No | Yes — dynamic API |
-| Backup network support | No | Yes |
 | Signal strength display | No | Yes — bars + label |
 | Platform support | ESP32 / ESP8266 | ESP32 / ESP8266 |
 | Non-blocking loop | Partial | Full state machine |
@@ -84,7 +87,7 @@ Try network 1                      |
 **State machine transitions (Serial Monitor output):**
 
 ```
-SmartProv v2.1.3
+SmartProv v3.0.0
 [SmartProv] Configured: YES
 [SmartProv] Trying network: HomeWiFi
 [SmartProv] State: 0 -> 1
@@ -116,15 +119,21 @@ SmartProv v2.1.3
 ## Features
 
 - Captive portal with automatic redirect on Android, iOS, and Windows
-- Wi-Fi network scan with signal strength bars, Secured/Open badges, and duplicate filtering
-- Multi-network support — save up to 3 networks with automatic fallback
-- Wrong-password detection — re-opens the portal immediately instead of exhausting retries
-- Custom form fields API — collect project-specific config through the same portal
-- Persistent storage — ESP32 uses NVS (Preferences), ESP8266 uses EEPROM
-- Factory reset via hardware button (hold GPIO0 for 3 seconds while connected)
-- LED status indicator — fast blink: setup mode, slow blink: connecting, solid: connected
-- Non-blocking state machine — never stalls `loop()`
-- Connection status feedback — spinner, success confirmation, and error messages in the UI
+- **Clean Hardware-Style Dark UI** — no AI emojis, bloated styling, or excess animations; fast and sleek
+- **Ultra-low RAM Footprint** — PROGMEM chunked response streaming prevents heap exhaustion on ESP8266
+- **Live Wi-Fi Rescan** — dynamically rescan and refresh networks without resetting the portal
+- **Built-in Web OTA Updates** — upload `.bin` firmware directly from browser (`/update`)
+- **mDNS Support** — access setup and updates via `http://smartprov.local/` (or custom hostname)
+- **Multi-network support** — save up to 3 networks directly in the portal UI with automatic fallback
+- **Wrong-password detection** — re-opens the portal immediately instead of exhausting retries
+- **AP Security** — configurable AP password support
+- **Lifecycle Callbacks** — `onConnected`, `onDisconnected`, `onSetupMode`, `onFactoryReset`, `onLoop`
+- **Device Info Endpoint** — `/info` JSON diagnostics (version, heap, status)
+- **Custom form fields API** — collect project-specific config (API keys, MQTT servers) through the portal with XSS escaping
+- **Persistent storage** — ESP32 uses NVS (Preferences), ESP8266 uses EEPROM
+- **Factory reset** — via hardware button (hold GPIO0 for 3 seconds while connected) or Serial command
+- **LED status indicator** — fast blink: setup mode, slow blink: connecting, solid: connected
+- **Non-blocking state machine** — never stalls `loop()`
 
 ---
 
@@ -278,12 +287,37 @@ String value = prov.getField("key");
 
 ```cpp
 prov.onConnected([]() {
-    // Called once on the first successful connection
+    // Called whenever Wi-Fi is connected (including re-connections)
+});
+
+prov.onDisconnected([]() {
+    // Called when Wi-Fi connection drops
+});
+
+prov.onSetupMode([]() {
+    // Called when Access Point & captive portal become active
+});
+
+prov.onFactoryReset([]() {
+    // Called before credentials are wiped
 });
 
 prov.onLoop([]() {
     // Called every update() cycle while connected
 });
+```
+
+### Advanced Features
+
+```cpp
+// Web-based firmware upload at http://<ip>/update
+prov.enableOTA();
+
+// mDNS local domain (e.g. http://weather-node.local)
+prov.enableMDNS("weather-node");
+
+// Secure the setup Access Point with a password
+prov.setAPPassword("admin1234");
 ```
 
 ### Factory Reset

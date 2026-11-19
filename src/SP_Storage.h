@@ -91,12 +91,19 @@ public:
 
             const String ssidKey = "ssid" + String(i);
             const String pwKey   = "pw"   + String(i);
-            strncpy(config.networks[i].ssid,     _prefs.getString(ssidKey.c_str(), "").c_str(), 63);
-            strncpy(config.networks[i].password, _prefs.getString(pwKey.c_str(),   "").c_str(), 63);
+            String tmpSsid = _prefs.getString(ssidKey.c_str(), "");
+            strncpy(config.networks[i].ssid, tmpSsid.c_str(), sizeof(config.networks[i].ssid) - 1);
+            config.networks[i].ssid[sizeof(config.networks[i].ssid) - 1] = '\0';
+
+            String tmpPw = _prefs.getString(pwKey.c_str(), "");
+            strncpy(config.networks[i].password, tmpPw.c_str(), sizeof(config.networks[i].password) - 1);
+            config.networks[i].password[sizeof(config.networks[i].password) - 1] = '\0';
             config.networks[i].valid = true;
         }
 
-        strncpy(config.deviceName, _prefs.getString("deviceName", "SmartDevice").c_str(), 31);
+        String tmpDevName = _prefs.getString("deviceName", "SmartDevice");
+        strncpy(config.deviceName, tmpDevName.c_str(), sizeof(config.deviceName) - 1);
+        config.deviceName[sizeof(config.deviceName) - 1] = '\0';
 
         for (int i = 0; i < SP_MAX_FIELDS; i++) {
             const String flagKey = "ff" + String(i);
@@ -104,8 +111,13 @@ public:
 
             const String kKey = "fk" + String(i);
             const String vKey = "fv" + String(i);
-            strncpy(config.fields[i].key,   _prefs.getString(kKey.c_str(), "").c_str(), SP_FIELD_KEY_LEN - 1);
-            strncpy(config.fields[i].value, _prefs.getString(vKey.c_str(), "").c_str(), SP_FIELD_VAL_LEN - 1);
+            String tmpKey = _prefs.getString(kKey.c_str(), "");
+            strncpy(config.fields[i].key, tmpKey.c_str(), SP_FIELD_KEY_LEN - 1);
+            config.fields[i].key[SP_FIELD_KEY_LEN - 1] = '\0';
+
+            String tmpVal = _prefs.getString(vKey.c_str(), "");
+            strncpy(config.fields[i].value, tmpVal.c_str(), SP_FIELD_VAL_LEN - 1);
+            config.fields[i].value[SP_FIELD_VAL_LEN - 1] = '\0';
             config.fields[i].valid = true;
         }
 
@@ -151,7 +163,7 @@ public:
         EEPROM.commit();
 #endif
 
-        Serial.println("[Storage] Configuration saved.");
+        Serial.println(F("[Storage] Configuration saved."));
     }
 
     void clear() {
@@ -161,7 +173,7 @@ public:
         EEPROM.write(0, 0x00);
         EEPROM.commit();
 #endif
-        Serial.println("[Storage] Configuration cleared.");
+        Serial.println(F("[Storage] Configuration cleared."));
     }
 
     // Returns the value of a named custom field, or an empty String if not found.
@@ -172,16 +184,6 @@ public:
             }
         }
         return String();
-    }
-
-    // Returns the first valid WiFi entry, or a zeroed entry if none exist.
-    SPWiFiEntry getFirstNetwork(const SPConfig& config) const {
-        for (int i = 0; i < SP_MAX_NETWORKS; i++) {
-            if (config.networks[i].valid) return config.networks[i];
-        }
-        SPWiFiEntry empty;
-        memset(&empty, 0, sizeof(empty));
-        return empty;
     }
 
 private:

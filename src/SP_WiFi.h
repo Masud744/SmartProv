@@ -27,6 +27,7 @@
 #define SP_WIFI_H
 
 #include <Arduino.h>
+#include <new>
 
 #ifdef ESP32
     #include <WiFi.h>
@@ -193,7 +194,7 @@ public:
             Serial.printf("[SmartProv] [WiFi] AP started: %s\n",  apName.c_str());
             Serial.printf("[SmartProv] [WiFi] AP IP: %s\n", WiFi.softAPIP().toString().c_str());
         } else {
-            Serial.println("[SmartProv] [WiFi] ERROR: softAP() failed.");
+            Serial.println(F("[SmartProv] [WiFi] ERROR: softAP() failed."));
         }
     }
 
@@ -203,13 +204,16 @@ public:
      * Results are deduplicated by SSID and sorted by RSSI descending.
      */
     String scanNetworks() {
-        Serial.println("[SmartProv] [WiFi] Scanning networks...");
+        Serial.println(F("[SmartProv] [WiFi] Scanning networks..."));
         int count = WiFi.scanNetworks();
         Serial.printf("[SmartProv] [WiFi] Scan complete — raw count: %d\n", count);
 
         if (count <= 0) return "[]";
 
-        SPNetwork* nets = new SPNetwork[count];
+        if (count > 20) count = 20;
+
+        SPNetwork* nets = new (std::nothrow) SPNetwork[count];
+        if (!nets) return "[]";
         int netCount = 0;
 
         for (int i = 0; i < count; i++) {
@@ -318,10 +322,10 @@ private:
     void _logFailureReason() const {
         switch (_lastFailReason) {
             case SP_FAIL_WRONG_PASSWORD:
-                Serial.println("[SmartProv] [WiFi] FAILED — authentication rejected (wrong password).");
+                Serial.println(F("[SmartProv] [WiFi] FAILED — authentication rejected (wrong password)."));
                 break;
             case SP_FAIL_SSID_NOT_FOUND:
-                Serial.println("[SmartProv] [WiFi] FAILED — SSID not found.");
+                Serial.println(F("[SmartProv] [WiFi] FAILED — SSID not found."));
                 break;
             case SP_FAIL_TIMEOUT:
             default:

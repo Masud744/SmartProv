@@ -1,8 +1,9 @@
 /**
- * SmartProv — Example: CustomFields
- * ===================================
+ * SmartProv — Example: CustomFields (v3.0.0)
+ * ============================================
  * Demonstrates dynamic custom field injection into the provisioning form
- * via addField(), and retrieval of saved values via getField() after boot.
+ * via addField(), retrieval of saved values via getField() after boot,
+ * mDNS discovery, and captive portal OTA firmware upload support.
  *
  * Use case: an IoT sensor node that requires an API key and a remote
  * server URL in addition to WiFi credentials. Both are collected during
@@ -23,6 +24,10 @@ void setup() {
     // Values are stored to flash and retrievable after restart via getField().
     prov.addField("api_key",    "API Key",    "e.g. abc123xyz789");
     prov.addField("server_url", "Server URL", "http://example.com/api");
+
+    // Enable mDNS discovery (accessible at http://sensornode.local) and OTA updates
+    prov.enableMDNS("sensornode");
+    prov.enableOTA();
 
     prov.begin();
 

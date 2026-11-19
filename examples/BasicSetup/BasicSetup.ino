@@ -1,8 +1,8 @@
 /**
- * SmartProv — Example: BasicSetup
- * =================================
+ * SmartProv — Example: BasicSetup (v3.0.0)
+ * =========================================
  * Minimal SmartProv integration. Demonstrates the core provisioning
- * flow with no custom configuration.
+ * flow with default configuration.
  *
  * Provisioning flow:
  *   1. Upload to ESP32 or ESP8266.

@@ -1,8 +1,9 @@
 /**
- * SmartProv — Example: AdvancedCallbacks
- * ========================================
- * Demonstrates custom pin assignment, the onConnected() and onLoop()
- * callbacks, and a serial command interface for triggering a software reset.
+ * SmartProv — Example: AdvancedCallbacks (v3.0.0)
+ * ================================================
+ * Demonstrates custom pin assignment, extended event callbacks
+ * (onConnected, onLoop, onDisconnected, onSetupMode, onFactoryReset),
+ * and a serial command interface for triggering a software reset.
  *
  * Configuration overrides must be defined before including SmartProv.h.
  */
@@ -37,9 +38,24 @@ void onWiFiLoop() {
 
 void setup() {
     Serial.begin(115200);
-    prov.begin(SP_RESET_PIN, SP_LED_PIN);
+
+    // Register event callbacks
     prov.onConnected(onWiFiConnected);
     prov.onLoop(onWiFiLoop);
+
+    prov.onDisconnected([]() {
+        Serial.println("[App] WiFi disconnected!");
+    });
+
+    prov.onSetupMode([]() {
+        Serial.println("[App] Setup portal is active.");
+    });
+
+    prov.onFactoryReset([]() {
+        Serial.println("[App] Factory reset initiated.");
+    });
+
+    prov.begin(SP_RESET_PIN, SP_LED_PIN);
 }
 
 void loop() {

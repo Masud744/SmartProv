@@ -1,6 +1,6 @@
 /**
  * SmartProv.h
- * SmartProv Main Library Header — v2.1.3
+ * SmartProv Main Library Header — v3.0.0
  *
  * Single-include entry point for the SmartProv Wi-Fi provisioning library.
  * Supported platforms: ESP32, ESP8266 / NodeMCU.
@@ -33,6 +33,8 @@
 #ifndef SMARTPROV_H
 #define SMARTPROV_H
 
+#define SP_VERSION "3.0.0"
+
 #if !defined(ESP32) && !defined(ESP8266)
     #error "SmartProv requires ESP32 or ESP8266."
 #endif
@@ -44,10 +46,12 @@
 #ifdef ESP32
     #include <WebServer.h>
     #include <DNSServer.h>
+    #include <ESPmDNS.h>
     #define _SP_WebServer WebServer
 #else
     #include <ESP8266WebServer.h>
     #include <DNSServer.h>
+    #include <ESP8266mDNS.h>
     #define _SP_WebServer ESP8266WebServer
 #endif
 
@@ -86,7 +90,12 @@ public:
           _lastLedToggle(0),
           _ledState(false),
           _onConnectedCb(nullptr),
-          _onLoopCb(nullptr)
+          _onLoopCb(nullptr),
+          _onDisconnectedCb(nullptr),
+          _onSetupModeCb(nullptr),
+          _onFactoryResetCb(nullptr),
+          _otaEnabled(false),
+          _mdnsEnabled(false)
     {}
 
     /**
@@ -101,9 +110,9 @@ public:
         _resetPin = resetPin;
         _ledPin   = ledPin;
 
-        Serial.println("\n=============================");
-        Serial.println("  SmartProv v2.1.3");
-        Serial.println("=============================");
+        Serial.println(F("\n============================="));
+        Serial.printf("  SmartProv v%s\n", SP_VERSION);
+        Serial.println(F("============================="));
 
         pinMode(_ledPin,   OUTPUT);
         pinMode(_resetPin, INPUT_PULLUP);
@@ -123,7 +132,7 @@ public:
                               _config.networks[_currentNetIdx].ssid);
                 _transitionTo(SP_APP_CONNECTING);
             } else {
-                Serial.println("[SmartProv] No valid networks in storage.");
+                Serial.println(F("[SmartProv] No valid networks in storage."));
                 _transitionTo(SP_APP_SETUP_MODE);
             }
         } else {
@@ -158,7 +167,6 @@ public:
 
                         const int next = _findNextValidNetwork(_currentNetIdx);
                         if (next >= 0) {
-                            // Still have more networks to try
                             _currentNetIdx = next;
                             _wifi.resetReconnectCounter();
                             Serial.printf("[SmartProv] Trying next network: %s\n",
@@ -166,8 +174,7 @@ public:
                             _wifi.beginSTA(_config.networks[next].ssid,
                                            _config.networks[next].password);
                         } else {
-                            // All networks exhausted with wrong passwords
-                            Serial.println("[SmartProv] All networks failed (wrong password). Entering setup mode.");
+                            Serial.println(F("[SmartProv] All networks failed (wrong password). Entering setup mode."));
                             _wifi.resetReconnectCounter();
                             _transitionTo(SP_APP_SETUP_MODE);
                         }
@@ -175,7 +182,7 @@ public:
                     }
 
                     if (_wifi.hasExceededReconnectLimit()) {
-                        Serial.println("[SmartProv] Reconnect limit reached. Entering setup mode.");
+                        Serial.println(F("[SmartProv] Reconnect limit reached. Entering setup mode."));
                         _wifi.resetReconnectCounter();
                         _transitionTo(SP_APP_SETUP_MODE);
                         break;
@@ -193,7 +200,7 @@ public:
                         // so the next cycle restarts from the first entry.
                         _currentNetIdx = _findNextValidNetwork(-1);
                         if (_currentNetIdx < 0) {
-                            Serial.println("[SmartProv] No valid networks. Entering setup mode.");
+                            Serial.println(F("[SmartProv] No valid networks. Entering setup mode."));
                             _transitionTo(SP_APP_SETUP_MODE);
                         } else {
                             Serial.printf("[SmartProv] Retrying from first network: %s\n",
@@ -209,8 +216,13 @@ public:
             case SP_APP_CONNECTED: {
                 if (_onLoopCb) _onLoopCb();
 
+#ifdef ESP8266
+                if (_mdnsEnabled) MDNS.update();
+#endif
+
                 if (!_wifi.isConnected()) {
-                    Serial.println("[SmartProv] Connection lost. Reconnecting...");
+                    Serial.println(F("[SmartProv] Connection lost. Reconnecting..."));
+                    if (_onDisconnectedCb) _onDisconnectedCb();
                     _transitionTo(SP_APP_CONNECTING);
                 }
                 break;
@@ -232,7 +244,7 @@ public:
 
             case SP_APP_RESTARTING: {
                 _server.stop();
-                Serial.println("[SmartProv] Restarting device.");
+                Serial.println(F("[SmartProv] Restarting device."));
                 delay(300);
                 ESP.restart();
                 break;
@@ -280,15 +292,48 @@ public:
         _server.addFieldDef(key, label, placeholder);
     }
 
+    /**
+     * Set a password for the provisioning AP. Call before begin().
+     * If not set (or empty), the AP runs open.
+     */
+    void setAPPassword(const char* password) { _apPassword = password; }
+
+    /**
+     * Enable OTA firmware updates via the captive portal.
+     * Call before begin().
+     */
+    void enableOTA(const char* password = "") {
+        _otaEnabled = true;
+        _server.enableOTA();
+    }
+
+    /**
+     * Enable mDNS so the device is reachable at <hostname>.local
+     * once connected to WiFi. Call before begin().
+     */
+    void enableMDNS(const char* hostname = "smartprov") {
+        _mdnsEnabled = true;
+        _mdnsHostname = hostname;
+    }
+
     // -----------------------------------------------------------------------
     // Callbacks
     // -----------------------------------------------------------------------
 
-    /** Called once immediately after the first successful Wi-Fi connection. */
+    /** Called every time a successful Wi-Fi connection is established. */
     void onConnected(void (*cb)()) { _onConnectedCb = cb; }
 
     /** Called every update() cycle while the device is connected. */
     void onLoop(void (*cb)()) { _onLoopCb = cb; }
+
+    /** Called when WiFi connection is lost, before reconnect begins. */
+    void onDisconnected(void (*cb)()) { _onDisconnectedCb = cb; }
+
+    /** Called when the device enters setup (AP) mode. */
+    void onSetupMode(void (*cb)()) { _onSetupModeCb = cb; }
+
+    /** Called just before credentials are erased (factory reset). */
+    void onFactoryReset(void (*cb)()) { _onFactoryResetCb = cb; }
 
     // -----------------------------------------------------------------------
     // Manual control
@@ -296,8 +341,9 @@ public:
 
     /** Erases all stored credentials and restarts into setup mode. */
     void resetCredentials() {
+        if (_onFactoryResetCb) _onFactoryResetCb();
         _storage.clear();
-        Serial.println("[SmartProv] Credentials erased. Restarting.");
+        Serial.println(F("[SmartProv] Credentials erased. Restarting."));
         delay(300);
         ESP.restart();
     }
@@ -348,19 +394,27 @@ private:
                 _setLed(true);
                 if (_onConnectedCb) {
                     _onConnectedCb();
-                    _onConnectedCb = nullptr;
+                }
+                if (_mdnsEnabled) {
+                    MDNS.begin(_mdnsHostname.c_str());
+                    Serial.printf("[SmartProv] mDNS: %s.local\n", _mdnsHostname.c_str());
                 }
                 break;
 
             case SP_APP_SETUP_MODE: {
+                _instance = this;
                 _apName = _wifi.generateAPName(SP_AP_PREFIX);
-                _wifi.startAP(_apName);
+                _wifi.startAP(_apName, _apPassword.c_str());
                 const String nets = _wifi.scanNetworks();
+                _server.setRescanCallback([]() -> String {
+                    if (_instance) return _instance->_wifi.scanNetworks();
+                    return "[]";
+                });
                 _server.begin(WiFi.softAPIP(), nets, [](SPConfig cfg) {
                     if (_instance) _instance->_onConfigReceived(cfg);
                 });
-                _instance = this;
                 Serial.printf("[SmartProv] AP: %s\n", _apName.c_str());
+                if (_onSetupModeCb) _onSetupModeCb();
                 break;
             }
 
@@ -403,7 +457,8 @@ private:
             _resetPressed = false;
         }
         if (_resetPressed && (millis() - _resetPressStart > SP_RESET_HOLD_MS)) {
-            Serial.println("[SmartProv] Factory reset triggered via hardware button.");
+            Serial.println(F("[SmartProv] Factory reset triggered via hardware button."));
+            if (_onFactoryResetCb) _onFactoryResetCb();
             _storage.clear();
             delay(300);
             ESP.restart();
@@ -479,6 +534,14 @@ private:
 
     void (*_onConnectedCb)();
     void (*_onLoopCb)();
+    void (*_onDisconnectedCb)();
+    void (*_onSetupModeCb)();
+    void (*_onFactoryResetCb)();
+
+    bool            _otaEnabled;
+    bool            _mdnsEnabled;
+    String          _mdnsHostname;
+    String          _apPassword;
 
     // Singleton pointer used only to bridge the lambda capture limitation
     // of the ESP Arduino SDK (std::function not available on all builds).
