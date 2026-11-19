@@ -1,17 +1,3 @@
-/**
- * SP_Server.h — SmartProv Web Server and Captive Portal Module
- * =============================================================
- * Hosts the provisioning HTTP server and DNS captive portal redirect
- * during AP mode. Renders the setup UI, accepts form submissions,
- * validates input, and invokes the configuration callback.
- *
- * HTML is stored in PROGMEM and streamed via chunked response to
- * minimize RAM usage on ESP8266. Custom fields registered via
- * addFieldDef() are injected dynamically between PROGMEM chunks.
- *
- * Optional OTA firmware upload via enableOTA() before begin().
- */
-
 #ifndef SP_SERVER_H
 #define SP_SERVER_H
 
@@ -21,12 +7,10 @@
 #ifdef ESP32
     #include <WebServer.h>
     #include <DNSServer.h>
-    #include <Update.h>
     #define SP_WebServerClass WebServer
 #else
     #include <ESP8266WebServer.h>
     #include <DNSServer.h>
-    #include <Updater.h>
     #define SP_WebServerClass ESP8266WebServer
 #endif
 
@@ -44,10 +28,6 @@ struct SPFieldDef {
     char placeholder[48];
     bool valid;
 };
-
-// ---------------------------------------------------------------------------
-// PROGMEM HTML chunks — setup page
-// ---------------------------------------------------------------------------
 
 static const char SP_HTML_HEAD[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 <html lang="en">
@@ -502,64 +482,6 @@ var c=5;var t=setInterval(function(){document.getElementById('sec').textContent=
 </html>
 )rawliteral";
 
-// ---------------------------------------------------------------------------
-// PROGMEM HTML — OTA upload page
-// ---------------------------------------------------------------------------
-
-static const char SP_HTML_OTA[] PROGMEM = R"rawliteral(<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Firmware Update</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{
-  font-family:system-ui,sans-serif;
-  background:#0f1419;color:#e6edf3;min-height:100vh;
-  display:flex;align-items:center;justify-content:center;padding:24px;
-}
-.card{
-  background:#161b22;border:1px solid #30363d;border-radius:8px;
-  padding:28px;max-width:400px;width:100%;
-  box-shadow:0 1px 3px rgba(0,0,0,.3);
-}
-h1{font-size:17px;font-weight:600;margin-bottom:16px}
-input[type=file]{
-  width:100%;padding:10px;background:#0d1117;border:1px solid #30363d;
-  border-radius:6px;color:#e6edf3;font-size:13px;margin-bottom:12px;
-}
-.btn{
-  width:100%;background:#0284c7;color:#fff;border:none;border-radius:6px;
-  padding:10px;font-size:14px;font-weight:600;cursor:pointer;
-}
-.btn:hover{background:#0369a1}
-#prog{margin-top:12px;font-size:13px;color:#7d8590;display:none}
-</style>
-</head>
-<body>
-<div class="card">
-  <h1>Firmware Update</h1>
-  <form method="POST" action="/update" enctype="multipart/form-data" id="uf">
-    <input type="file" name="update" accept=".bin">
-    <button type="submit" class="btn">Upload &amp; Flash</button>
-  </form>
-  <div id="prog"></div>
-</div>
-<script>
-document.getElementById('uf').onsubmit=function(){
-  document.getElementById('prog').style.display='block';
-  document.getElementById('prog').textContent='Uploading\u2026';
-};
-</script>
-</body>
-</html>
-)rawliteral";
-
-// ---------------------------------------------------------------------------
-// SP_Server
-// ---------------------------------------------------------------------------
-
 class SP_Server {
 public:
 
@@ -569,7 +491,6 @@ public:
           _onConfigReceived(nullptr),
           _wifiScanCallback(nullptr),
           _configSaved(false),
-          _otaEnabled(false),
           _fieldDefCount(0)
     {}
 
@@ -588,9 +509,6 @@ public:
 
     // Set a callback to perform live WiFi rescans from the /networks endpoint.
     void setRescanCallback(String (*cb)()) { _wifiScanCallback = cb; }
-
-    // Enable OTA firmware upload page at /update. Call before begin().
-    void enableOTA() { _otaEnabled = true; }
 
     void begin(IPAddress apIP, const String& networksJson, SPConfigCallback callback) {
         _networksJson     = networksJson;
@@ -615,14 +533,6 @@ public:
         _server.on("/success.txt",         HTTP_GET,  [this]() { _redirectToRoot(); });
         _server.onNotFound([this]() { _redirectToRoot(); });
 
-        if (_otaEnabled) {
-            _server.on("/update", HTTP_GET, [this]() { _handleOTAPage(); });
-            _server.on("/update", HTTP_POST,
-                [this]() { _server.send(200, "text/plain", Update.hasError() ? "FAIL" : "OK"); },
-                [this]() { _handleOTAUpload(); }
-            );
-        }
-
         _server.begin();
         Serial.println(F("[Server] HTTP server started on port 80."));
     }
@@ -640,11 +550,6 @@ public:
     }
 
 private:
-
-    // -------------------------------------------------------------------------
-    // HTML escaping for XSS protection
-    // -------------------------------------------------------------------------
-
     String _escapeHtml(const char* s) const {
         String out;
         while (*s) {
@@ -659,10 +564,6 @@ private:
         }
         return out;
     }
-
-    // -------------------------------------------------------------------------
-    // Request handlers
-    // -------------------------------------------------------------------------
 
     void _handleRoot() {
         _server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -787,45 +688,10 @@ private:
         _server.send(200, "application/json", json);
     }
 
-    void _handleOTAPage() {
-        _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-        _server.send(200, "text/html; charset=utf-8", "");
-        _server.sendContent_P(SP_HTML_OTA);
-    }
-
-    void _handleOTAUpload() {
-        HTTPUpload& upload = _server.upload();
-        if (upload.status == UPLOAD_FILE_START) {
-            Serial.println(F("[OTA] Starting firmware update."));
-#ifdef ESP32
-            if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
-#else
-            uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
-            if (!Update.begin(maxSketchSpace)) {
-#endif
-                Serial.println(F("[OTA] Not enough space."));
-            }
-        } else if (upload.status == UPLOAD_FILE_WRITE) {
-            if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
-                Serial.println(F("[OTA] Write failed."));
-            }
-        } else if (upload.status == UPLOAD_FILE_END) {
-            if (Update.end(true)) {
-                Serial.println(F("[OTA] Update complete."));
-            } else {
-                Serial.println(F("[OTA] Update failed."));
-            }
-        }
-    }
-
     void _redirectToRoot() {
         _server.sendHeader("Location", "http://192.168.4.1/");
         _server.send(302, "text/plain", "");
     }
-
-    // -------------------------------------------------------------------------
-    // Dynamic HTML builder — custom fields only (small, non-PROGMEM)
-    // -------------------------------------------------------------------------
 
     String _buildCustomFields() const {
         if (_fieldDefCount == 0) return "";
@@ -843,17 +709,12 @@ private:
         return out;
     }
 
-    // -------------------------------------------------------------------------
-    // Members
-    // -------------------------------------------------------------------------
-
     SP_WebServerClass&  _server;
     DNSServer&          _dns;
     SPConfigCallback    _onConfigReceived;
     String              (*_wifiScanCallback)();
     String              _networksJson;
     bool                _configSaved;
-    bool                _otaEnabled;
     SPFieldDef          _fieldDefs[SP_MAX_FIELDS];
     int                 _fieldDefCount;
 };

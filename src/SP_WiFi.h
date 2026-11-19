@@ -1,28 +1,3 @@
-/**
- * SP_WiFi.h
- * SmartProv Wi-Fi Module — v2.1.3
- *
- * Manages all Wi-Fi operations for SmartProv:
- *   - Non-blocking STA connection with configurable timeout
- *   - Fast-fail on auth rejection (wrong password / SSID not found)
- *   - Access Point startup for provisioning mode
- *   - Network scanning with deduplication and RSSI-descending sort
- *   - JSON serialisation of scan results for the captive portal UI
- *
- * Wrong-password detection — platform differences:
- *   ESP32:   WL_CONNECT_FAILED fires quickly on auth rejection.
- *            WL_DISCONNECTED (6) arrives at the timeout boundary.
- *            WL_WRONG_PASSWORD does not exist in the ESP32 core.
- *   ESP8266: WL_WRONG_PASSWORD (6) and WL_CONNECT_FAILED rarely fire
- *            before the timeout. At the timeout boundary, the SDK reports
- *            WL_DISCONNECTED (7) after auth rejection — the station is
- *            disconnected by the AP following a failed 4-way handshake.
- *            This is confirmed by hardware testing (finalStatus=7 on bad
- *            credentials, finalStatus=1 when SSID is absent).
- *   Both:    Define SP_DEBUG before including SmartProv.h to log each
- *            wl_status change during a connection attempt.
- */
-
 #ifndef SP_WIFI_H
 #define SP_WIFI_H
 
@@ -36,18 +11,10 @@
     #define WIFI_AUTH_OPEN ENC_TYPE_NONE
 #endif
 
-// ---------------------------------------------------------------------------
-// Configuration constants
-// ---------------------------------------------------------------------------
-
 #define SP_CONNECT_TIMEOUT_MS   8000
 #define SP_MAX_RECONNECT_TRIES  5
 #define SP_AP_CHANNEL           6
 #define SP_AP_MAX_CLIENTS       4
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 enum SPWiFiState {
     SP_WIFI_IDLE,
@@ -69,10 +36,6 @@ struct SPNetwork {
     int32_t rssi;
     bool    isOpen;
 };
-
-// ---------------------------------------------------------------------------
-// SP_WiFi
-// ---------------------------------------------------------------------------
 
 class SP_WiFi {
 public:
@@ -101,11 +64,6 @@ public:
         _lastFailReason   = SP_FAIL_NONE;
     }
 
-    /**
-     * Polls the current connection attempt.
-     * Must be called every loop() iteration while state is SP_WIFI_CONNECTING.
-     * Returns SP_WIFI_CONNECTED, SP_WIFI_FAILED, or SP_WIFI_CONNECTING.
-     */
     SPWiFiState update() {
         if (_state != SP_WIFI_CONNECTING) return _state;
 
@@ -198,11 +156,6 @@ public:
         }
     }
 
-    /**
-     * Scans for available networks and returns a JSON array.
-     * Each element: { "ssid": "...", "rssi": -42, "signal": 4, "open": false }
-     * Results are deduplicated by SSID and sorted by RSSI descending.
-     */
     String scanNetworks() {
         Serial.println(F("[SmartProv] [WiFi] Scanning networks..."));
         int count = WiFi.scanNetworks();
@@ -273,10 +226,6 @@ public:
 
         return json;
     }
-
-    // ---------------------------------------------------------------------------
-    // Status accessors
-    // ---------------------------------------------------------------------------
 
     SPWiFiState  getState()             const { return _state; }
     bool         isConnected()          const { return WiFi.status() == WL_CONNECTED; }

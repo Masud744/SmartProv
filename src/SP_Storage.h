@@ -1,19 +1,3 @@
-/**
- * SP_Storage.h — SmartProv Persistent Storage Module
- * ====================================================
- * Provides a unified storage interface for both ESP32 (Preferences/NVS)
- * and ESP8266 (EEPROM). Handles serialization and deserialization of
- * the full device configuration, including multi-network credentials,
- * device identity, and user-defined custom fields.
- *
- * ESP32  : Uses the Preferences library (NVS partition, key-value store).
- * ESP8266: Uses the EEPROM emulation library (flash-backed byte array).
- *
- * Storage layout version is enforced via EEPROM_VALID_FLAG on ESP8266.
- * Changing SP_MAX_NETWORKS, SP_MAX_FIELDS, or struct layout requires
- * incrementing this flag to invalidate stale stored configs.
- */
-
 #ifndef SP_STORAGE_H
 #define SP_STORAGE_H
 
@@ -27,10 +11,6 @@
     #define EEPROM_VALID_FLAG 0xAC
 #endif
 
-// ---------------------------------------------------------------------------
-// Capacity constants — adjustable via user defines before including this header
-// ---------------------------------------------------------------------------
-
 #ifndef SP_MAX_NETWORKS
     #define SP_MAX_NETWORKS  3
 #endif
@@ -41,10 +21,6 @@
 
 #define SP_FIELD_KEY_LEN  16
 #define SP_FIELD_VAL_LEN  64
-
-// ---------------------------------------------------------------------------
-// Data structures
-// ---------------------------------------------------------------------------
 
 struct SPWiFiEntry {
     char ssid[64];
@@ -64,10 +40,6 @@ struct SPConfig {
     SPField     fields[SP_MAX_FIELDS];
     bool        isConfigured;
 };
-
-// ---------------------------------------------------------------------------
-// SP_Storage
-// ---------------------------------------------------------------------------
 
 class SP_Storage {
 public:
@@ -176,7 +148,6 @@ public:
         Serial.println(F("[Storage] Configuration cleared."));
     }
 
-    // Returns the value of a named custom field, or an empty String if not found.
     String getField(const SPConfig& config, const char* key) const {
         for (int i = 0; i < SP_MAX_FIELDS; i++) {
             if (config.fields[i].valid && strcmp(config.fields[i].key, key) == 0) {

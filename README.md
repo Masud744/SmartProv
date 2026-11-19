@@ -30,7 +30,6 @@ This works on your desk. It breaks the moment you deploy a device to a client, a
 | Multi-network fallback | No | Yes — up to 3 networks |
 | Wrong-password detection | Retries 5x | Immediately re-provisions |
 | Live Wi-Fi rescan | No | Yes — real-time scan button |
-| Built-in Web OTA | No | Yes — browser firmware upload |
 | mDNS Support | No | Yes (`smartprov.local`) |
 | RAM Efficiency | High overhead | PROGMEM streaming (saves ~16KB RAM) |
 | Custom config fields | No | Yes — dynamic API |
@@ -119,11 +118,10 @@ SmartProv v3.0.0
 ## Features
 
 - Captive portal with automatic redirect on Android, iOS, and Windows
-- **Clean Hardware-Style Dark UI** — no AI emojis, bloated styling, or excess animations; fast and sleek
+- **Hardware-Style Dark UI** — fast, minimalist dark theme styled for embedded setups
 - **Ultra-low RAM Footprint** — PROGMEM chunked response streaming prevents heap exhaustion on ESP8266
 - **Live Wi-Fi Rescan** — dynamically rescan and refresh networks without resetting the portal
-- **Built-in Web OTA Updates** — upload `.bin` firmware directly from browser (`/update`)
-- **mDNS Support** — access setup and updates via `http://smartprov.local/` (or custom hostname)
+- **mDNS Support** — access setup via `http://smartprov.local/` (or custom hostname)
 - **Multi-network support** — save up to 3 networks directly in the portal UI with automatic fallback
 - **Wrong-password detection** — re-opens the portal immediately instead of exhausting retries
 - **AP Security** — configurable AP password support
@@ -310,9 +308,6 @@ prov.onLoop([]() {
 ### Advanced Features
 
 ```cpp
-// Web-based firmware upload at http://<ip>/update
-prov.enableOTA();
-
 // mDNS local domain (e.g. http://weather-node.local)
 prov.enableMDNS("weather-node");
 

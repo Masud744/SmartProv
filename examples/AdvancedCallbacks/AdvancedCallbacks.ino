@@ -1,13 +1,3 @@
-/**
- * SmartProv — Example: AdvancedCallbacks (v3.0.0)
- * ================================================
- * Demonstrates custom pin assignment, extended event callbacks
- * (onConnected, onLoop, onDisconnected, onSetupMode, onFactoryReset),
- * and a serial command interface for triggering a software reset.
- *
- * Configuration overrides must be defined before including SmartProv.h.
- */
-
 #define SP_AP_PREFIX      "IoTDevice"
 #define SP_RESET_PIN      0
 #define SP_LED_PIN        2
