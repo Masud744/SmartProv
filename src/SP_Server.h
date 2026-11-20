@@ -592,10 +592,16 @@ private:
         _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
         _server.send(200, "text/html; charset=utf-8", "");
         _server.sendContent_P(SP_HTML_HEAD);
-        _server.sendContent(_buildCustomFields());
+
+        String custom = _buildCustomFields();
+        if (custom.length() > 0) {
+            _server.sendContent(custom);
+        }
+
         _server.sendContent_P(SP_HTML_TAIL_TOP);
         _server.sendContent((_networksJson.length() > 2) ? _networksJson : "[]");
         _server.sendContent_P(SP_HTML_TAIL_BOTTOM);
+        _server.sendContent("");
     }
 
     void _handleSave() {
