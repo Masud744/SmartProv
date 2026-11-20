@@ -269,7 +269,7 @@ input::placeholder{color:var(--muted);opacity:.5}
 
 // Injected: custom fields (dynamic, non-PROGMEM)
 
-static const char SP_HTML_TAIL[] PROGMEM = R"rawliteral(
+static const char SP_HTML_TAIL_TOP[] PROGMEM = R"rawliteral(
     <button type="button" class="btn" id="submitBtn" onclick="submitForm()">Save &amp; Connect</button>
     <p class="reset-hint">Hold reset for 3s to factory reset.</p>
 
@@ -278,28 +278,45 @@ static const char SP_HTML_TAIL[] PROGMEM = R"rawliteral(
 </div>
 
 <script>
-var _nets=[];
+var _nets=
+)rawliteral";
+
+static const char SP_HTML_TAIL_BOTTOM[] PROGMEM = R"rawliteral(
+;
 
 function sigLabel(s){return['','Weak','Fair','Good','Excellent'][s]||'';}
 
-function loadNets(rescan){
+function renderNets(){
   var sel=document.getElementById('ssidSelect');
-  sel.innerHTML='<option value="">Loading networks\u2026</option><option value="__manual__">Enter network name manually\u2026</option>';
-  var url = rescan ? '/networks?rescan=1' : '/networks';
-  fetch(url)
+  if(!_nets || _nets.length===0){
+    sel.innerHTML='<option value="__manual__">Enter network name manually\u2026</option>';
+    onNetSelect(sel);
+    return;
+  }
+  sel.innerHTML='<option value="">-- Select network --</option>';
+  _nets.forEach(function(n,i){
+    var o=document.createElement('option');
+    o.value=String(i);
+    o.textContent=n.ssid+' ('+sigLabel(n.signal)+')';
+    sel.appendChild(o);
+  });
+  var m=document.createElement('option');
+  m.value='__manual__';m.textContent='Enter network name manually\u2026';
+  sel.appendChild(m);
+}
+
+function loadNets(rescan){
+  if(!rescan && _nets && _nets.length > 0){
+    renderNets();
+    return;
+  }
+  var sel=document.getElementById('ssidSelect');
+  sel.innerHTML='<option value="">Scanning networks\u2026</option><option value="__manual__">Enter network name manually\u2026</option>';
+  fetch('/networks?rescan=1')
     .then(function(r){return r.json();})
     .then(function(nets){
       _nets=nets;
-      sel.innerHTML='<option value="">-- Select network --</option>';
-      nets.forEach(function(n,i){
-        var o=document.createElement('option');
-        o.value=String(i);
-        o.textContent=n.ssid+' ('+sigLabel(n.signal)+')';
-        sel.appendChild(o);
-      });
-      var m=document.createElement('option');
-      m.value='__manual__';m.textContent='Enter network name manually\u2026';
-      sel.appendChild(m);
+      renderNets();
     })
     .catch(function(){
       sel.innerHTML='<option value="__manual__">Enter network name manually\u2026</option>';
@@ -307,7 +324,9 @@ function loadNets(rescan){
     });
 }
 
-window.onload=function(){ loadNets(false); };
+window.onload=function(){
+  renderNets();
+};
 
 function rescanNets(){ loadNets(true); }
 
@@ -574,7 +593,9 @@ private:
         _server.send(200, "text/html; charset=utf-8", "");
         _server.sendContent_P(SP_HTML_HEAD);
         _server.sendContent(_buildCustomFields());
-        _server.sendContent_P(SP_HTML_TAIL);
+        _server.sendContent_P(SP_HTML_TAIL_TOP);
+        _server.sendContent((_networksJson.length() > 2) ? _networksJson : "[]");
+        _server.sendContent_P(SP_HTML_TAIL_BOTTOM);
     }
 
     void _handleSave() {
