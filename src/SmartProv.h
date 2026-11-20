@@ -1,7 +1,7 @@
 #ifndef SMARTPROV_H
 #define SMARTPROV_H
 
-#define SP_VERSION "3.0.0"
+#define SP_VERSION "3.0.1"
 
 #if !defined(ESP32) && !defined(ESP8266)
     #error "SmartProv requires an ESP32 family (ESP32/S2/S3/C3/C6) or ESP8266 board."
