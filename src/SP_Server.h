@@ -15,7 +15,7 @@
 #endif
 
 #ifndef SP_VERSION
-    #define SP_VERSION "3.0.1"
+    #define SP_VERSION "3.0.2"
 #endif
 
 #define DNS_PORT 53
@@ -274,7 +274,7 @@ static const char SP_HTML_TAIL_TOP[] PROGMEM = R"rawliteral(
     <p class="reset-hint">Hold reset for 3s to factory reset.</p>
 
   </div>
-  <div class="footer">SmartProv v3.0.1</div>
+  <div class="footer">SmartProv v3.0.2</div>
 </div>
 
 <script>
@@ -493,7 +493,7 @@ h1{font-size:20px;font-weight:600;margin-bottom:8px}
   <p class="sub">WiFi credentials saved.<br>The device is restarting.</p>
   <div class="note">Reconnect your phone to your regular WiFi network.</div>
   <p class="counter">Restarting in <span id="sec">5</span>s</p>
-  <div class="footer">SmartProv v3.0.1</div>
+  <div class="footer">SmartProv v3.0.2</div>
 </div>
 <script>
 var c=5;var t=setInterval(function(){document.getElementById('sec').textContent=--c;if(c<=0)clearInterval(t);},1000);

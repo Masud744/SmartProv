@@ -80,7 +80,7 @@ Try network 1                      |
 **State machine transitions (Serial Monitor output):**
 
 ```
-SmartProv v3.0.1
+SmartProv v3.0.2
 [SmartProv] Configured: YES
 [SmartProv] Trying network: HomeWiFi
 [SmartProv] State: 0 -> 1

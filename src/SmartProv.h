@@ -1,7 +1,7 @@
 #ifndef SMARTPROV_H
 #define SMARTPROV_H
 
-#define SP_VERSION "3.0.1"
+#define SP_VERSION "3.0.2"
 
 #if !defined(ESP32) && !defined(ESP8266)
     #error "SmartProv requires an ESP32 family (ESP32/S2/S3/C3/C6) or ESP8266 board."
@@ -51,6 +51,7 @@ public:
           _saveTimestamp(0),
           _resetPressed(false),
           _resetPressStart(0),
+          _lastResetLowTime(0),
           _lastLedToggle(0),
           _ledState(false),
           _onConnectedCb(nullptr),
@@ -58,6 +59,7 @@ public:
           _onDisconnectedCb(nullptr),
           _onSetupModeCb(nullptr),
           _onFactoryResetCb(nullptr),
+          _onWrongPasswordCb(nullptr),
           _mdnsEnabled(false)
     {
         memset(_wrongPasswordNets, 0, sizeof(_wrongPasswordNets));
@@ -71,8 +73,12 @@ public:
         Serial.printf("  SmartProv v%s\n", SP_VERSION);
         Serial.println(F("============================="));
 
-        pinMode(_ledPin,   OUTPUT);
-        pinMode(_resetPin, INPUT_PULLUP);
+        if (_ledPin != 255) {
+            pinMode(_ledPin, OUTPUT);
+        }
+        if (_resetPin != 255) {
+            pinMode(_resetPin, INPUT_PULLUP);
+        }
         _setLed(false);
         memset(_wrongPasswordNets, 0, sizeof(_wrongPasswordNets));
 
@@ -117,6 +123,9 @@ public:
                         Serial.printf("[SmartProv] Wrong password for: %s\n",
                                       _config.networks[_currentNetIdx].ssid);
                         _wrongPasswordNets[_currentNetIdx] = true;
+                        if (_onWrongPasswordCb) {
+                            _onWrongPasswordCb(_config.networks[_currentNetIdx].ssid);
+                        }
 
                         const int next = _findNextConnectableNetwork(_currentNetIdx);
                         if (next >= 0) {
@@ -215,14 +224,15 @@ public:
         }
     }
 
-    bool    isConnected()   const { return _appState == SP_APP_CONNECTED && _wifi.isConnected(); }
-    bool    isSetupMode()   const { return _appState == SP_APP_SETUP_MODE; }
-    String  getIP()         const { return _wifi.getIP(); }
-    String  getSSID()       const { return (_currentNetIdx >= 0) ? String(_config.networks[_currentNetIdx].ssid) : ""; }
-    String  getDeviceName() const { return String(_config.deviceName); }
-    String  getAPName()     const { return _apName; }
-    String  getMACAddress() const { return _wifi.getMACAddress(); }
-    int32_t getRSSI()       const { return _wifi.getRSSI(); }
+    bool    isConnected()     const { return _appState == SP_APP_CONNECTED && _wifi.isConnected(); }
+    bool    isSetupMode()     const { return _appState == SP_APP_SETUP_MODE; }
+    bool    isWrongPassword() const { return _wifi.isWrongPassword(); }
+    String  getIP()           const { return _wifi.getIP(); }
+    String  getSSID()         const { return (_currentNetIdx >= 0) ? String(_config.networks[_currentNetIdx].ssid) : ""; }
+    String  getDeviceName()   const { return String(_config.deviceName); }
+    String  getAPName()       const { return _apName; }
+    String  getMACAddress()   const { return _wifi.getMACAddress(); }
+    int32_t getRSSI()         const { return _wifi.getRSSI(); }
 
     String getField(const char* key) const {
         return _storage.getField(_config, key);
@@ -244,10 +254,16 @@ public:
     void onDisconnected(void (*cb)()) { _onDisconnectedCb = cb; }
     void onSetupMode(void (*cb)()) { _onSetupModeCb = cb; }
     void onFactoryReset(void (*cb)()) { _onFactoryResetCb = cb; }
+    void onWrongPassword(void (*cb)(const char* ssid)) { _onWrongPasswordCb = cb; }
 
     void resetCredentials() {
         if (_onFactoryResetCb) _onFactoryResetCb();
         _storage.clear();
+#ifdef ESP32
+        WiFi.disconnect(true, true);
+#else
+        WiFi.disconnect(true);
+#endif
         Serial.println(F("[SmartProv] Credentials erased. Restarting."));
         delay(300);
         ESP.restart();
@@ -358,27 +374,32 @@ private:
             }
         }
 
-        // Factory reset is permitted while CONNECTED or CONNECTING.
-        if (_appState != SP_APP_CONNECTED && _appState != SP_APP_CONNECTING) {
+        if (_resetPin == 255) return;
+
+        // Prevent factory reset while writing to flash or rebooting
+        if (_appState == SP_APP_SAVING || _appState == SP_APP_RESTARTING) {
             _resetPressed = false;
             return;
         }
 
-        const bool pressed = (digitalRead(_resetPin) == LOW);
+        const bool isLow = (digitalRead(_resetPin) == LOW);
+        const unsigned long now = millis();
 
-        if (pressed && !_resetPressed) {
-            _resetPressed    = true;
-            _resetPressStart = millis();
-        }
-        if (!pressed) {
-            _resetPressed = false;
-        }
-        if (_resetPressed && (millis() - _resetPressStart > SP_RESET_HOLD_MS)) {
-            Serial.println(F("[SmartProv] Factory reset triggered via hardware button."));
-            if (_onFactoryResetCb) _onFactoryResetCb();
-            _storage.clear();
-            delay(300);
-            ESP.restart();
+        if (isLow) {
+            _lastResetLowTime = now;
+            if (!_resetPressed) {
+                _resetPressed    = true;
+                _resetPressStart = now;
+            } else if (now - _resetPressStart >= SP_RESET_HOLD_MS) {
+                Serial.println(F("[SmartProv] Factory reset triggered via hardware button."));
+                resetCredentials();
+                return;
+            }
+        } else {
+            // Debounce tolerance: only consider released if HIGH persists for > 150ms
+            if (_resetPressed && (now - _lastResetLowTime > 150)) {
+                _resetPressed = false;
+            }
         }
     }
 
@@ -432,6 +453,7 @@ private:
     unsigned long   _saveTimestamp;
     bool            _resetPressed;
     unsigned long   _resetPressStart;
+    unsigned long   _lastResetLowTime;
     unsigned long   _lastLedToggle;
     bool            _ledState;
 
@@ -440,6 +462,7 @@ private:
     void (*_onDisconnectedCb)();
     void (*_onSetupModeCb)();
     void (*_onFactoryResetCb)();
+    void (*_onWrongPasswordCb)(const char* ssid);
 
     bool            _mdnsEnabled;
     String          _mdnsHostname;
