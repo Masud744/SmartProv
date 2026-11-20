@@ -282,10 +282,11 @@ var _nets=[];
 
 function sigLabel(s){return['','Weak','Fair','Good','Excellent'][s]||'';}
 
-function loadNets(){
+function loadNets(rescan){
   var sel=document.getElementById('ssidSelect');
-  sel.innerHTML='<option value="">Loading networks\u2026</option>';
-  fetch('/networks')
+  sel.innerHTML='<option value="">Loading networks\u2026</option><option value="__manual__">Enter network name manually\u2026</option>';
+  var url = rescan ? '/networks?rescan=1' : '/networks';
+  fetch(url)
     .then(function(r){return r.json();})
     .then(function(nets){
       _nets=nets;
@@ -297,18 +298,18 @@ function loadNets(){
         sel.appendChild(o);
       });
       var m=document.createElement('option');
-      m.value='__manual__';m.textContent='Enter manually\u2026';
+      m.value='__manual__';m.textContent='Enter network name manually\u2026';
       sel.appendChild(m);
     })
     .catch(function(){
-      sel.innerHTML='<option value="__manual__">Enter network name manually</option>';
+      sel.innerHTML='<option value="__manual__">Enter network name manually\u2026</option>';
       onNetSelect(sel);
     });
 }
 
-window.onload=loadNets;
+window.onload=function(){ loadNets(false); };
 
-function rescanNets(){loadNets();}
+function rescanNets(){ loadNets(true); }
 
 function onNetSelect(el){
   var mf=document.getElementById('manualField');
@@ -670,7 +671,14 @@ private:
     }
 
     void _handleNetworks() {
-        String fresh = _wifiScanCallback ? _wifiScanCallback() : _networksJson;
+        bool rescan = _server.hasArg("rescan");
+        String fresh;
+        if (rescan && _wifiScanCallback) {
+            fresh = _wifiScanCallback();
+            _networksJson = fresh;
+        } else {
+            fresh = (_networksJson.length() > 2) ? _networksJson : (_wifiScanCallback ? _wifiScanCallback() : "[]");
+        }
         _server.sendHeader("Access-Control-Allow-Origin", "*");
         _server.sendHeader("Cache-Control", "no-cache");
         _server.send(200, "application/json", fresh);
